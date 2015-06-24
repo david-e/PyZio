@@ -4,33 +4,35 @@
 @license: GPLv2
 """
 
+import logging
 import os
 import select
 
-from PyZio.ZioInterface import ZioInterface
-from PyZio.ZioCtrl import ZioCtrl
+from . import Ctrl, Interface
 
-class ZioCharDevice(ZioInterface):
+
+class CharDevice(Interface):
     """
     This class represent the Char Device interface of ZIO. It has two char
     devices: one for control and one for data. The have both the same file
     permission.
     """
 
-    def __init__(self, zobj):
+    def __init__(self, parent):
         """
         Initialize ZioCharDevice class. The zobj parameter is the object
         which use this interface. This object should be a channel
         """
-        ZioInterface.__init__(self, zobj)
-        self.lastctrl = None
+        Interface.__init__(self, parent)
+        self.expose_methods.extend(['read_block'])
+        self._lastctrl = None
         self.__fdc = None
         self.__fdd = None
         # Set data and ctrl char devices
-        self.ctrlfile = os.path.join(self.zio_interface_path, \
-                                     self.interface_prefix + "-ctrl")
-        self.datafile = os.path.join(self.zio_interface_path, \
-                                     self.interface_prefix + "-data")
+        self._ctrlfile = os.path.join(self._interface_path,
+                                     self._interface_prefix + "-ctrl")
+        self._datafile = os.path.join(self._interface_path,
+                                     self._interface_prefix + "-data")
         self.__poll = select.poll()
 
     def fileno_ctrl(self):
@@ -38,6 +40,7 @@ class ZioCharDevice(ZioInterface):
         Return ctrl char device file descriptor
         """
         return self.__fdc
+
     def fileno_data(self):
         """
         Return data char device file descriptor
@@ -48,24 +51,23 @@ class ZioCharDevice(ZioInterface):
         self.open_ctrl(perm)
         self.open_data(perm)
 
-    def open_data(self, perm):
+    def open_data(self, perm=os.O_RDONLY):
         """
         Open data char device
         """
         if self.__fdd == None:
-            self.__fdd = os.open(self.datafile, perm)
+            self.__fdd = os.open(self._datafile, perm)
             self.__poll.register(self.__fdd)
-        else:
-            print("File already open")
-    def open_ctrl(self, perm):
+        return self.__fdd
+
+    def open_ctrl(self, perm=os.O_RDONLY):
         """
         Open ctrl char device
         """
         if self.__fdc == None:
-            self.__fdc = os.open(self.ctrlfile, perm)
+            self.__fdc = os.open(self._ctrlfile, perm)
             self.__poll.register(self.__fdc)
-        else:
-            print("File already open")
+        return self.__fdc
 
     def close_ctrl_data(self):
         self.close_ctrl()
@@ -79,6 +81,7 @@ class ZioCharDevice(ZioInterface):
             self.__poll.unregister(self.__fdd)
             os.close(self.__fdd)
             self.__fdd = None
+
     def close_ctrl(self):
         """
         Close ctrl char device
@@ -88,39 +91,40 @@ class ZioCharDevice(ZioInterface):
             os.close(self.__fdc)
             self.__fdc = None
 
-
-    def read_ctrl(self):
+    def read_ctrl(self, unpack=True):
         """
         If the control char device is open and it is readable, then it reads
         the control structure. Every time it internally store the control; it
         will be used as default when no control is provided
         """
-        if self.__fdc == None or not self.is_ctrl_readable():
-            return None
+        if self.open_ctrl() is None:
+            raise IOError('Ctrl not readable')
+
         # Read the control
         bin_ctrl = os.read(self.__fdc, 512)
 
-        ctrl = ZioCtrl()
-        self.lastctrl = ctrl
-        ctrl.unpack_to_ctrl(bin_ctrl)
+        ctrl = Ctrl(bin_ctrl)
+        self._lastctrl = ctrl
+        if unpack:
+            ctrl.unpack()
         return ctrl
 
-    def read_data(self, ctrl = None, unpack = True):
+    def read_data(self, ctrl=None, unpack=True):
         """
         If the data char device is open and it is readable, then it reads
         the data
         """
-        if self.__fdd == None or not self.is_data_readable():
-            return None
+        if self.open_data() is None:
+            raise IOError('Data not readable')
 
         if ctrl == None:
-            if self.lastctrl == None:
-                print("WARNING: you never read control, only 16 samples read")
-                tmpctrl = ZioCtrl()
+            if self._lastctrl == None:
+                logging.warning("You never read control, only 16 samples read")
+                tmpctrl = Ctrl()
                 tmpctrl.ssize = 1
                 tmpctrl.nsamples = 16
             else:
-                tmpctrl = self.lastctrl
+                tmpctrl = self._lastctrl
         else:
             tmpctrl = ctrl
 
@@ -130,7 +134,7 @@ class ZioCharDevice(ZioInterface):
         else:
             return data_tmp
 
-    def read_block(self, rctrl = True, rdata = True, unpack = True):
+    def read_block(self, rctrl=True, rdata=True, unpack=True):
         """
         It read the control and the samples of a block from char devices.
         It stores the last control in self.lastCtrl. The parameter rctrl and
@@ -138,20 +142,15 @@ class ZioCharDevice(ZioInterface):
         information
         """
         ctrl = None
-        samples = None
-
-        if rctrl and self.__fdc == None:
-            self.open_ctrl(os.O_RDONLY)
-        if rdata and self.__fdd == None:
-            self.open_data(os.O_RDONLY)
+        data = None
 
         if rctrl:
             ctrl = self.read_ctrl()
 
         if rdata:  # Read the data
-            samples = self.read_data(ctrl, unpack)
+            data = self.read_data(ctrl, unpack)
 
-        return ctrl, samples
+        return ctrl, data
 
     def write_ctrl(self, ctrl):
         raise NotImplementedError
@@ -162,7 +161,7 @@ class ZioCharDevice(ZioInterface):
     def write_block(self, ctrl, samples):
         raise NotImplementedError
 
-    def is_device_ready(self, timeout = 0):
+    def is_device_ready(self, timeout=0):
         in_ready = False
         out_ready = False
         events = self.poll(timeout)

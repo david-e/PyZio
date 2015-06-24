@@ -1,12 +1,14 @@
 """
-@author: Federico Vaga
+@author: Federico Vaga <federico.vaga@gmail.com>
 @copyright: Federico Vaga 2012
 @license: GPLv2
 """
-
+import logging
+import os
 import struct
 
-class ZioCtrlAttr(object):
+
+class CtrlAttr(object):
     """
     It represent the python version of the zio_ctrl_attr structure
     """
@@ -17,7 +19,7 @@ class ZioCtrlAttr(object):
         self.ext_val = list(eattr)
 
     def __eq__(self, other):
-        if not isinstance(other, ZioCtrlAttr):
+        if not isinstance(other, CtrlAttr):
             return False
 
         ret = True
@@ -52,7 +54,8 @@ class ZioCtrlAttr(object):
 
         return out
 
-class ZioTLV(object):
+
+class Tlv(object):
     """
     It represent the python version of the zio_tlv structure
     """
@@ -61,7 +64,8 @@ class ZioTLV(object):
         self.len = l
         self.val = v
 
-class ZioAddress(object):
+
+class Address(object):
     """
     It represent the python version of the zio_addr structure
     """
@@ -75,7 +79,7 @@ class ZioAddress(object):
         self.devname = dev.replace("\x00", "")
 
     def __eq__(self, other):
-        if not isinstance(other, ZioAddress):
+        if not isinstance(other, Address):
             return False
         return self.__dict__ == other.__dict__
 
@@ -83,23 +87,22 @@ class ZioAddress(object):
         return not self.__eq__(other)
 
     def __str__(self):
-        out = "dev {0}-{1}, cset {2}, chan {3}".format(self.devname, \
-                                                       self.dev_id, \
-                                                       self.cset_i, \
-                                                       self.chan_i)
+        out = "dev {0}-{1}, cset {2}, chan {3}".format(
+            self.devname, self.dev_id, self.cset_i, self.chan_i)
         return out
 
-class ZioTimeStamp(object):
+
+class TimeStamp(object):
     """
     It represent the python version of the zio_timestamp structure
     """
     def __init__(self, s, t, b):
-        self.seconds = s
+        self.secs = s
         self.ticks = t
         self.bins = b
 
     def __eq__(self, other):
-        if not isinstance(other, ZioTimeStamp):
+        if not isinstance(other, TimeStamp):
             return False
 
         return self.__dict__ == other.__dict__
@@ -108,14 +111,15 @@ class ZioTimeStamp(object):
         return not self.__eq__(other)
 
     def __str__(self):
-        return "{0}.{1} ({2})".format(self.seconds, self.ticks, self.bins)
+        return "{0}.{1} ({2})".format(self.secs, self.ticks, self.bins)
 
-class ZioCtrl(object):
+
+class Ctrl(object):
     """
     It represent the python verion of the zio_control structure
     """
 
-    def __init__(self):
+    def __init__(self, binctrl=None):
         # Description of the control structure field's length
         self.packstring = "4B2I2H1H2B8BI2H12s3Q3I12s2HI16I32I2HI16I32I2I8B"
         #                  ^ ^ ^ ^           ^ ^ ^  ^        ^        ^
@@ -143,8 +147,10 @@ class ZioCtrl(object):
         # ZIO TLV
         self.tlv = None
 
+        self.binctrl = binctrl
+
     def __eq__(self, other):
-        if not isinstance(other, ZioCtrl):
+        if not isinstance(other, Ctrl):
             return False
 
         ret = True
@@ -199,18 +205,17 @@ class ZioCtrl(object):
         FIXME ONLY FOR OUTPUT
         """
         # nsamples must be pre_samples + post_samples
-        attr_nsamples = self.attr_trigger.std_val[1] \
-                      + self.attr_trigger.std_val[2]
+        attr_nsamples = self.attr_trigger.std_val[1] + self.attr_trigger.std_val[2]
         if self.nsamples != attr_nsamples:
             return False
         return True
 
-    def unpack_to_ctrl(self, binctrl):
+    def unpack(self):
         """
         This function unpack a given binary control to fill the fields of
         this class. It use the self.packstring class attribute to unpack
         """
-        ctrl = struct.unpack(self.packstring, binctrl)
+        ctrl = struct.unpack(self.packstring, self.binctrl)
         # 4B
         self.major_version = ctrl[0]
         self.minor_version = ctrl[1]
@@ -224,10 +229,10 @@ class ZioCtrl(object):
         self.nbits = ctrl[7]
         # 1H2B8BI2H12s
         # ctrl[10] is a filler
-        self.addr = ZioAddress(ctrl[8], ctrl[9], ctrl[11:19], \
+        self.addr = Address(ctrl[8], ctrl[9], ctrl[11:19],
                                ctrl[19], ctrl[20], ctrl[21], ctrl[22])
         # 3Q
-        self.tstamp = ZioTimeStamp(ctrl[23], ctrl[24], ctrl[25])
+        self.tstamp = TimeStamp(ctrl[23], ctrl[24], ctrl[25])
         # 3I
         self.mem_offset = ctrl[26]
         self.reserved = ctrl[27]
@@ -235,14 +240,12 @@ class ZioCtrl(object):
         # 12s
         self.triggername = ctrl[29].replace("\x00", "")
         # 2HI16I32I
-        self.attr_channel = ZioCtrlAttr(ctrl[30], ctrl[32], ctrl[33:49], \
-                                      ctrl[49:81])
+        self.attr_channel = CtrlAttr(ctrl[30], ctrl[32], ctrl[33:49], ctrl[49:81])
         # 2HI16I32I
-        self.attr_trigger = ZioCtrlAttr(ctrl[81], ctrl[83], ctrl[84:100], \
-                                      ctrl[100:132])
-        self.tlv = ZioTLV(ctrl[132], ctrl[133], ctrl[134:142])
+        self.attr_trigger = CtrlAttr(ctrl[81], ctrl[83], ctrl[84:100], ctrl[100:132])
+        self.tlv = Tlv(ctrl[132], ctrl[133], ctrl[134:142])
 
-    def pack_to_bin(self):
+    def pack(self):
         """This function pack this control into a binary control"""
         pack_list = []
         pack_list.append(self.major_version)
@@ -288,3 +291,160 @@ class ZioCtrl(object):
         It clears the content of the class
         """
         self.__init__()
+
+
+class Interface(object):
+    """
+    It is a generic abstraction of a ZIO interface: Char Device and socket.
+    """
+
+    _interface_path = "/dev/zio/"
+
+    def __init__(self, parent=None):
+        self.parent = parent
+        self._interface_prefix = self.parent.devname
+        self._ctrlfile = "" # Full path to the control file
+        self._datafile = "" # Full path to the data file
+        self._lastctrl = None
+        self.expose_methods = []
+        logging.debug("new %s", self.__class__.__name__)
+
+    def is_ctrl_readable(self):
+        """
+        It returns if you can read control from device
+        """
+        return os.access(self._ctrlfile, os.R_OK)
+
+    def is_ctrl_writable(self):
+        """
+        It returns if you can write control into device
+        """
+        return os.access(self._ctrlfile, os.W_OK)
+
+    def is_data_readable(self):
+        """
+        It returns if you can read data from device
+        """
+        return os.access(self._datafile, os.R_OK)
+
+    def is_data_writable(self):
+        """
+        It returns if you can write data into device
+        """
+        return os.access(self._datafile, os.W_OK)
+
+    def is_device_ready(self, timeout = 0):
+        """
+        It is a mandatory method for the derived class. It must returns two
+        boolean value: the first is 'True' if the device is ready to be read;
+        the second is 'True if the device is ready to be write'. The optional
+        parameter 'timeout' sets the time to wait before return. The '0' value
+        mean immediately, 'None' mean infinite, and a different value represent
+        the milliseconds to wait.
+        """
+        raise NotImplementedError
+
+    # Mandatory Open Methods
+    def open_ctrl_data(self, perm):
+        """
+        It is a mandatory method for the derived class. It opens both control
+        and data source. The 'perm' parameter set the permission to use during
+        open
+        """
+        raise NotImplementedError
+
+    def open_data(self, perm):
+        """
+        It is a mandatory method for the derived class. It opens samples's
+        source. The 'perm' parameter set the permission to use during open
+        """
+        raise NotImplementedError
+
+    def open_ctrl(self, perm):
+        """
+        It is a mandatory method for the derived class. It opens control's
+        source. The 'perm' parameter set the permission to use during open
+        """
+        raise NotImplementedError
+
+    # Mandatory Close Methods
+    def close_ctrl_data(self):
+        """
+        It is a mandatory method for the derived class. It closes both control
+        and data source.
+        """
+        raise NotImplementedError
+
+    def close_data(self):
+        """
+        It is a mandatory method for the derived class. It closes sample's
+        source.
+        """
+        raise NotImplementedError
+
+    def close_ctrl(self):
+        """
+        It is a mandatory method for the derived class. It closes control's
+        source.
+        """
+        raise NotImplementedError
+
+    # Mandatory Read/Write Methods
+    def read_ctrl(self):
+        """
+        It is a mandatory method for the derived class. It reads, and returns,
+        a control structure from a channel.
+        """
+        raise NotImplementedError
+
+    def read_data(self, ctrl = None, unpack = True):
+        """
+        It is a mandatory method for the derived class. It reads, and returns,
+        samples from a channel.
+        """
+        raise NotImplementedError
+
+    def read_block(self, rctrl = True, rdata = True, unpack = True):
+        """
+        It is a mandatory method for the derived class. It reads, and returns,
+        a block from a channel. The block is a python set with control and
+        data.
+        """
+        raise NotImplementedError
+
+    def write_ctrl(self, ctrl):
+        """
+        It is a mandatory method for the derived class. It writes a control
+        to a channel
+        """
+        raise NotImplementedError
+
+    def write_data(self, samples):
+        """
+        It is a mandatory method for the derived class. It writes samples to
+        a channel
+        """
+        raise NotImplementedError
+
+    def write_block(self, ctrl, samples):
+        """
+        It is a mandatory method for the derived class. It writes both control
+        and samples to a channel
+        """
+        raise NotImplementedError
+
+    def _unpack_data(self, data, nsamples, ssize):
+        """
+        It unpacks 'data' of nsamples elements of the same size 'ssize'
+        """
+        fmt = "b"
+        if ssize == 1:
+            fmt = "B"
+        elif ssize == 2:
+            fmt = "H"
+        elif ssize == 4:
+            fmt = "I"
+        elif ssize == 8:
+            fmt = "Q"
+        return struct.unpack((str(nsamples) + fmt), data)
+
