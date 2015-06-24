@@ -5,7 +5,8 @@
 """
 import os
 
-from ..base import Base, BaseMeta, is_zio_object, ZIO_DEVTYPE
+from ..base import ZioBase, BaseMeta, is_zio_object, ZIO_DEVTYPE
+from ..base.attribute import StringAttr
 from ..cset import Cset
 
 
@@ -23,12 +24,15 @@ class DeviceMeta(BaseMeta):
         return klass
 
 
-class Device(Base):
+class Device(ZioBase):
     """
     It describes the zio_device object from the ZIO framework.
     """
 
     __metaclass__ = DeviceMeta
+
+    devname = StringAttr()
+    devtype = StringAttr()
 
     def __init__(self, path, parent=None):
         """

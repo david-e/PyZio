@@ -4,7 +4,8 @@
 @license: GPLv2
 """
 
-from ..base import Base, BaseMeta, BooleanAttr, IntegerAttr
+from ..base import Base, BaseMeta
+from ..base.attribute import BooleanAttr, IntegerAttr
 
 
 BUFFERS = {}
@@ -31,7 +32,7 @@ class Buffer(Base):
     """
     __metaclass__ = BufferMeta
 
-    allocated__buffer_len = IntegerAttr()
+    allocated__buffer__len = IntegerAttr()
     max__buffer__len = IntegerAttr()
     prefer__new = BooleanAttr()
 

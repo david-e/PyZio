@@ -3,9 +3,9 @@
 @copyright: Federico Vaga 2012
 @license: GPLv2
 """
-import os
 
-from ..base import Base, BaseMeta, IntegerAttr
+from ..base import Base, BaseMeta
+from ..base.attribute import BooleanAttr, IntegerAttr, StringAttr
 
 
 TRIGGERS = {}
@@ -37,6 +37,8 @@ class TrigTimer(Trigger):
 
     _type = 'timer'
 
+    devtype = StringAttr()
+    enable = BooleanAttr()
     ms__period = IntegerAttr()
     ms__phase = IntegerAttr()
     post__samples = IntegerAttr()

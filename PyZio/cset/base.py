@@ -4,9 +4,9 @@
 @license: GPLv2
 """
 import os
-from os.path import join, isdir
 
-from ..base import Base, BaseMeta, is_zio_object, StringAttr, ZIO_DEVTYPE
+from ..base import ZioBase, BaseMeta, is_zio_object, ZIO_DEVTYPE
+from ..base.attribute import StringAttr
 from ..channel import Channel
 from ..trigger import get_trigger_klass
 
@@ -25,7 +25,7 @@ class CsetMeta(BaseMeta):
         return klass
 
 
-class Cset(Base):
+class Cset(ZioBase):
     """
     ZioCset class describe the zio_cset object from the ZIO framework.
     """
@@ -44,7 +44,7 @@ class Cset(Base):
         directory; all valid files are attributes. The list of children object
         is made of trigger and channels.
         """
-        Base.__init__(self, path, parent)  # Initialize zObject
+        super(Cset, self).__init__(path, parent)  # Initialize zObject
         self.channels = []  # List of channel children
 
         for e in os.listdir(path):

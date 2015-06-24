@@ -6,7 +6,7 @@
 
 import os
 
-from ..base import Base, BaseMeta, ZIO_DEVTYPE
+from ..base import ZioBase, BaseMeta, ZIO_DEVTYPE
 from ..buffer import get_buffer_klass
 from ..interface import CharDevice, Ctrl, Interface
 
@@ -25,7 +25,7 @@ class ChannelMeta(BaseMeta):
         return klass
 
 
-class Channel(Base):
+class Channel(ZioBase):
     """
     This class describes the zio_channel object from the ZIO framework.
     """
@@ -41,7 +41,7 @@ class Channel(Base):
         directory. All valid files are normal attributes. A directory can be a
         buffer or an interface.
         """
-        Base.__init__(self, path, parent)
+        super(Channel, self).__init__(path, parent)
         self.buffer = None
         self.interface = None
 
