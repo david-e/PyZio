@@ -3,8 +3,10 @@
 @copyright: Federico Vaga 2012
 @license: GPLv2
 """
-from PyZio.ZioUtil import is_readable, is_writable
 import struct, logging
+
+from pyzio.utils import is_readable, is_writable
+
 
 class ZioInterface(object):
     """
@@ -15,7 +17,7 @@ class ZioInterface(object):
 
     def __init__(self, zobj):
         self.zobj = zobj
-        self.interface_prefix = self.zobj.attribute["devname"].get_value()
+        self.interface_prefix = self.zobj._attrs["devname"].get_value()
         self.ctrlfile = "" # Full path to the control file
         self.datafile = "" # Full path to the data file
         self.lastctrl = None

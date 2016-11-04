@@ -4,12 +4,15 @@
 @license: GPLv2
 """
 import os
+
 from os.path import join, isdir
-from PyZio.ZioObject import ZioObject
-from PyZio.ZioAttribute import ZioAttribute
-from PyZio.ZioChan import ZioChan
-from PyZio.ZioTrig import ZioTrig
-from PyZio.ZioError import ZioMissingAttribute
+
+
+from pyzio.attribute import ZioAttribute
+from pyzio.channel import ZioChan
+from pyzio.errors import ZioMissingAttribute
+from pyzio.object import ZioObject
+from pyzio.trigger import ZioTrig
 
 
 class ZioCset(ZioObject):
@@ -26,28 +29,34 @@ class ZioCset(ZioObject):
         is made of trigger and channels.
         """
         ZioObject.__init__(self, path, name) # Initialize zObject
-        self.chan = [] # List of channel children
+        self.chan = {} # dict of channel children
+        self.update()
+
+    def __getitem__(self, key):
+        return self.chan[key]
+
+    def update(self):
+        self.chan.clear()
+        self._obj_children.clear()
         self.trigger = None # Associated trigger
         self.interleave = None # Interleaved channel
-
         for tmp in os.listdir(self.fullpath):
             if not self.is_valid_sysfs_element(tmp): # Skip if invalid element
                 continue
             if tmp == "trigger" and isdir(join(self.fullpath, tmp)):
                 self.trigger = ZioTrig(self.fullpath, tmp)
                 continue
-
             if isdir(join(self.fullpath, tmp)): # Subdir is a channel
                 newchan = ZioChan(self.fullpath, tmp)
-                self.chan.append(newchan)
+                self.chan[newchan.oid] = newchan
                 if tmp == "chani":
                     self.interleave = newchan
+                    #self.self_timed = newchan.get_current_ctrl()
             else: # otherwise is an attribute
-                self.attribute[tmp] = ZioAttribute(self.fullpath, tmp)
-
+                self.set_attribute(tmp)
         # Update the zObject children list
-        self.obj_children.append(self.trigger)
-        self.obj_children.extend(self.chan)
+        self._obj_children.append(self.trigger)
+        self._obj_children.extend(self.chan)
 
     def is_interleaved(self):
         """

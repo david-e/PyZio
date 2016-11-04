@@ -5,8 +5,9 @@
 """
 import os
 
-from PyZio.ZioObject import ZioObject
-from PyZio.ZioAttribute import ZioAttribute
+from pyzio.attribute import ZioAttribute
+from pyzio.object import ZioObject
+
 
 class ZioTrig(ZioObject):
     """
@@ -23,4 +24,4 @@ class ZioTrig(ZioObject):
         for tmp in os.listdir(self.fullpath):
             if not self.is_valid_sysfs_element(tmp):
                 continue
-            self.attribute[tmp] = ZioAttribute(self.fullpath, tmp)
+            self._attrs[tmp] = ZioAttribute(self.fullpath, tmp)

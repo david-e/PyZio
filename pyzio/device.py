@@ -4,10 +4,13 @@
 @license: GPLv2
 """
 import os
+
 from os.path import join, isdir
-from PyZio.ZioObject import ZioObject
-from PyZio.ZioAttribute import ZioAttribute
-from PyZio.ZioCset import ZioCset
+
+from pyzio.attribute import ZioAttribute
+from pyzio.channelset import ZioCset
+from pyzio.object import ZioObject
+
 
 class ZioDev(ZioObject):
     """
@@ -23,14 +26,24 @@ class ZioDev(ZioObject):
         set.
         """
         ZioObject.__init__(self, path, name)
-        self.cset = [] # List of children cset
+        self.cset = {}
+        self.update()
+    
+    def __getitem__(self, key):
+        return self.cset[key]
+
+    def __str__(self):
+        return self.devname
+    
+    def update(self):
+        self.cset.clear()
+        self._obj_children.clear()
         for tmp in os.listdir(self.fullpath):
             if not self.is_valid_sysfs_element(tmp): # Skip if invalid element
                 continue
             if isdir(join(self.fullpath, tmp)): # Subdirs are csets
                 newcset = ZioCset(self.fullpath, tmp)
-                self.cset.append(newcset)
+                self.cset[newcset.oid] = newcset
             else: # otherwise is an attribute
-                self.attribute[tmp] = ZioAttribute(self.fullpath, tmp)
-
-        self.obj_children.extend(self.cset) # Update the zObject children list
+                self.set_attribute(tmp)
+        self._obj_children.extend(self.cset) # Update the zObject children list

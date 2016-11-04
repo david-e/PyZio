@@ -3,8 +3,11 @@
 @copyright: Federico Vaga 2012
 @license: GPLv2
 """
-
+import os
 import struct
+
+from pyzio.errors import ZioInvalidControl
+
 
 class ZioCtrlAttr(object):
     """
@@ -52,6 +55,7 @@ class ZioCtrlAttr(object):
 
         return out
 
+
 class ZioTLV(object):
     """
     It represent the python version of the zio_tlv structure
@@ -60,6 +64,7 @@ class ZioTLV(object):
         self.type = t
         self.len = l
         self.val = v
+
 
 class ZioAddress(object):
     """
@@ -72,7 +77,7 @@ class ZioAddress(object):
         self.dev_id = did
         self.cset_i = cset
         self.chan_i = chan
-        self.devname = dev.replace("\x00", "")
+        self.devname = dev.decode('UTF-8').replace("\x00", "")
 
     def __eq__(self, other):
         if not isinstance(other, ZioAddress):
@@ -88,6 +93,7 @@ class ZioAddress(object):
                                                        self.cset_i, \
                                                        self.chan_i)
         return out
+
 
 class ZioTimeStamp(object):
     """
@@ -110,12 +116,27 @@ class ZioTimeStamp(object):
     def __str__(self):
         return "{0}.{1} ({2})".format(self.seconds, self.ticks, self.bins)
 
+
 class ZioCtrl(object):
     """
-    It represent the python verion of the zio_control structure
+    It represent the python version of the zio_control structure
     """
 
-    def __init__(self):
+    BASE_SIZE = 512
+
+    @classmethod
+    def read(cls, fileno):
+        binctrl = os.read(fileno, cls.BASE_SIZE)
+        ctrl = ZioCtrl(binctrl)
+        return ctrl
+
+    @classmethod
+    def write(cls, fileno, ctrl):
+        if not (isinstance(ctrl, ZioCtrl) and ctrl.is_valid()):
+            raise ZioInvalidControl(ctrl)
+        os.write(fileno, ctrl.pack_to_bin())
+
+    def __init__(self, binctrl=None):
         # Description of the control structure field's length
         self.packstring = "4B2I2H1H2B8BI2H12s3Q3I12s2HI16I32I2HI16I32I2I8B"
         #                  ^ ^ ^ ^           ^ ^ ^  ^        ^        ^
@@ -142,6 +163,8 @@ class ZioCtrl(object):
         self.attr_trigger = None
         # ZIO TLV
         self.tlv = None
+        if binctrl:
+            self.unpack(binctrl)
 
     def __eq__(self, other):
         if not isinstance(other, ZioCtrl):
@@ -205,7 +228,7 @@ class ZioCtrl(object):
             return False
         return True
 
-    def unpack_to_ctrl(self, binctrl):
+    def unpack(self, binctrl):
         """
         This function unpack a given binary control to fill the fields of
         this class. It use the self.packstring class attribute to unpack
@@ -233,7 +256,7 @@ class ZioCtrl(object):
         self.reserved = ctrl[27]
         self.flags = ctrl[28]
         # 12s
-        self.triggername = ctrl[29].replace("\x00", "")
+        self.triggername = ctrl[29].decode('UTF-8').replace("\x00", "")
         # 2HI16I32I
         self.attr_channel = ZioCtrlAttr(ctrl[30], ctrl[32], ctrl[33:49], \
                                       ctrl[49:81])
@@ -242,7 +265,7 @@ class ZioCtrl(object):
                                       ctrl[100:132])
         self.tlv = ZioTLV(ctrl[132], ctrl[133], ctrl[134:142])
 
-    def pack_to_bin(self):
+    def pack(self):
         """This function pack this control into a binary control"""
         pack_list = []
         pack_list.append(self.major_version)

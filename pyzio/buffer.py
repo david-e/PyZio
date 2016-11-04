@@ -5,8 +5,9 @@
 """
 import os
 
-from PyZio.ZioObject import ZioObject
-from PyZio.ZioAttribute import ZioAttribute
+from pyzio.object import ZioObject
+from pyzio.attribute import ZioAttribute
+
 
 class ZioBuf(ZioObject):
     """
@@ -27,11 +28,11 @@ class ZioBuf(ZioObject):
             if not self.is_valid_sysfs_element(tmp):
                 continue
             # All the valid element are attributes
-            self.attribute[tmp] = ZioAttribute(self.fullpath, tmp)
+            self._attrs[tmp] = ZioAttribute(self.fullpath, tmp)
 
     def flush(self):
         """
         It does 'flush' on the buffer
         """
-        if "flush" in self.attribute:
-            self.attribute["flush"].set_value(1)
+        if "flush" in self._attrs:
+            self._attrs["flush"].set_value(1)

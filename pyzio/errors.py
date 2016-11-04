@@ -17,6 +17,7 @@ class ZioError(Exception):
     def __str__(self):
         return "Zio Error {0}: {1}".format(self.code, self.message)
 
+
 class ZioInvalidControl(ZioError):
     """
     The library raises this error when the application requires to use an
@@ -26,6 +27,7 @@ class ZioInvalidControl(ZioError):
     def __init__(self, ctrl):
         ZioError.__init__(0, "Invalid control")
         self.invalid_ctrl = ctrl
+
 
 class ZioMissingAttribute(ZioError):
     """

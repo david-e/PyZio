@@ -6,8 +6,9 @@
 
 import os
 import stat
-from PyZio.ZioConfig import zio_bus_path, devices_path, devices, \
-                            buffers, triggers
+
+from pyzio.config import zio_bus_path, devices_path
+
 
 def is_loaded():
     """It returns true if ZIO is loaded correctly, otherwise it returns false.
@@ -29,36 +30,9 @@ def is_readable(path):
     perm = (stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH)
     return True if mode & perm else False
 
+
 def is_writable(path):
     """It returns if the path is writable"""
     mode = stat.S_IMODE(os.stat(path).st_mode)
     perm = (stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH)
     return True if mode & perm else False
-
-def update_devices():
-    """It updates the internal list of available devices"""
-    del devices[:]
-    for zdev in os.listdir(devices_path):
-        if "hw-" in zdev:
-            continue
-        devices.append(zdev)
-
-def update_buffers():
-    """It updates the internal list of available buffers"""
-    del buffers[:]
-    with open(zio_bus_path + "/available_buffers", "r") as f:
-        for line in f:
-            buffers.append(line.rstrip('\n'))
-
-def update_triggers():
-    """It updates the internal list of available triggers"""
-    del triggers[:]
-    with open(zio_bus_path + "/available_triggers", "r") as f:
-        for line in f:
-            triggers.append(line.rstrip('\n'))
-
-def update_all_zio_objects():
-    """It updates the internal list of available devices, buffers and triggers"""
-    update_devices()
-    update_triggers()
-    update_buffers()

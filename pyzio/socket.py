@@ -4,7 +4,8 @@
 @license: GPLv2
 """
 
-from PyZio.ZioInterface import ZioInterface
+from pyzio.interface import ZioInterface
+
 
 class ZioSocket(ZioInterface):
     def __init__(self, zobj):

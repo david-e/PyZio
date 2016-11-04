@@ -5,10 +5,11 @@
 """
 
 import os
-import select
+import selectors
 
-from PyZio.ZioInterface import ZioInterface
-from PyZio.ZioCtrl import ZioCtrl
+from pyzio.ctrl import ZioCtrl
+from pyzio.interface import ZioInterface
+
 
 class ZioCharDevice(ZioInterface):
     """
@@ -31,41 +32,58 @@ class ZioCharDevice(ZioInterface):
                                      self.interface_prefix + "-ctrl")
         self.datafile = os.path.join(self.zio_interface_path, \
                                      self.interface_prefix + "-data")
-        self.__poll = select.poll()
+        self.__poll = selectors.DefaultSelector()
 
     def fileno_ctrl(self):
         """
         Return ctrl char device file descriptor
         """
         return self.__fdc
+
     def fileno_data(self):
         """
         Return data char device file descriptor
         """
         return self.__fdd
 
-    def open_ctrl_data(self, perm):
-        self.open_ctrl(perm)
+    def open_ctrl_data(self, perm=None):
+        self.open_ctrl()
         self.open_data(perm)
 
-    def open_data(self, perm):
+    def open_data(self, perm=None):
         """
         Open data char device
         """
-        if self.__fdd == None:
-            self.__fdd = os.open(self.datafile, perm)
-            self.__poll.register(self.__fdd)
-        else:
-            print("File already open")
-    def open_ctrl(self, perm):
+        if self.__fdd:
+            return self.__fdd
+        if not perm:
+            if self.is_data_writable():
+                perm = os.O_R
+            elif self.is_data_readable():
+                perm = os.O_RDONLY
+            else:
+                raise IOError('Data not readable or writable')
+        evt = selectors.EVENT_WRITE if self.is_data_writable() \
+            else selectors.EVENT_WRITE
+        self.__fdd = os.open(self.datafile, perm)
+        self.__poll.register(self.__fdd, evt)
+        return self.__fdd
+    
+    def open_ctrl(self, perm=None):
         """
         Open ctrl char device
         """
-        if self.__fdc == None:
-            self.__fdc = os.open(self.ctrlfile, perm)
-            self.__poll.register(self.__fdc)
-        else:
-            print("File already open")
+        if self.__fdc:
+            return
+        if not perm:
+            if self.is_data_writable():
+                perm = os.O_R
+            elif self.is_data_readable():
+                perm = os.O_RDONLY
+            else:
+                raise IOError('Ctrl not readable or writable')
+        self.__fdc = os.open(self.ctrlfile, perm)
+        self.__poll.register(self.__fdc, selectors.EVENT_READ)
 
     def close_ctrl_data(self):
         self.close_ctrl()
@@ -75,19 +93,21 @@ class ZioCharDevice(ZioInterface):
         """
         Close data char device
         """
-        if self.__fdd != None:
-            self.__poll.unregister(self.__fdd)
-            os.close(self.__fdd)
-            self.__fdd = None
+        if self.__fdd == None:
+            return
+        self.__poll.unregister(self.__fdd)
+        os.close(self.__fdd)
+        self.__fdd = None
+
     def close_ctrl(self):
         """
         Close ctrl char device
         """
-        if self.__fdc != None:
-            self.__poll.unregister(self.__fdc)
-            os.close(self.__fdc)
-            self.__fdc = None
-
+        if self.__fdc == None:
+            return
+        self.__poll.unregister(self.__fdc)
+        os.close(self.__fdc)
+        self.__fdc = None
 
     def read_ctrl(self):
         """
@@ -96,41 +116,33 @@ class ZioCharDevice(ZioInterface):
         will be used as default when no control is provided
         """
         if self.__fdc == None or not self.is_ctrl_readable():
-            return None
+            raise IOError
         # Read the control
-        bin_ctrl = os.read(self.__fdc, 512)
+        bin_ctrl = os.read(self.__fdc, ZioCtrl.BASE_SIZE)
+        self.lastctrl = ZioCtrl(bin_ctrl)
+        return self.lastctrl
 
-        ctrl = ZioCtrl()
-        self.lastctrl = ctrl
-        ctrl.unpack_to_ctrl(bin_ctrl)
-        return ctrl
-
-    def read_data(self, ctrl = None, unpack = True):
+    def read_data(self, ctrl=None, unpack=True):
         """
         If the data char device is open and it is readable, then it reads
         the data
         """
         if self.__fdd == None or not self.is_data_readable():
-            return None
-
+            raise IOError
         if ctrl == None:
             if self.lastctrl == None:
-                print("WARNING: you never read control, only 16 samples read")
-                tmpctrl = ZioCtrl()
-                tmpctrl.ssize = 1
-                tmpctrl.nsamples = 16
-            else:
-                tmpctrl = self.lastctrl
+                _ctrl = self.read_ctrl()
+            _ctrl = self.lastctrl
         else:
-            tmpctrl = ctrl
+            _ctrl = ctrl
 
-        data_tmp = os.read(self.__fdd, tmpctrl.ssize * tmpctrl.nsamples)
+        data_tmp = os.read(self.__fdd, _ctrl.ssize * _ctrl.nsamples)
         if unpack:
-            return self._unpack_data(data_tmp, tmpctrl.nsamples, tmpctrl.ssize)
+            return self._unpack_data(data_tmp, _ctrl.nsamples, _ctrl.ssize)
         else:
             return data_tmp
 
-    def read_block(self, rctrl = True, rdata = True, unpack = True):
+    def read_block(self, rctrl=True, rdata=True, unpack=True):
         """
         It read the control and the samples of a block from char devices.
         It stores the last control in self.lastCtrl. The parameter rctrl and
@@ -140,18 +152,11 @@ class ZioCharDevice(ZioInterface):
         ctrl = None
         samples = None
 
-        if rctrl and self.__fdc == None:
-            self.open_ctrl(os.O_RDONLY)
-        if rdata and self.__fdd == None:
-            self.open_data(os.O_RDONLY)
-
         if rctrl:
             ctrl = self.read_ctrl()
-
         if rdata:  # Read the data
-            samples = self.read_data(ctrl, unpack)
-
-        return ctrl, samples
+            data = self.read_data(ctrl, unpack)
+        return ctrl, data
 
     def write_ctrl(self, ctrl):
         raise NotImplementedError
@@ -168,18 +173,16 @@ class ZioCharDevice(ZioInterface):
         events = self.poll(timeout)
         if len(events) == 0:  # Check if it is possible to access device
             return False, False
-
         for __fd, flags in events:
-            if flags & (select.POLLIN | select.POLLPRI):
+            if flags & (selectors.EVENT_READ):
                 in_ready = True
-            elif flags & select.POLLOUT:
+            elif flags & selectors.EVENT_WRITE:
                 out_ready = True
-
         return in_ready, out_ready
 
-    def poll(self, timeout = None):
+    def poll(self, timeout=None):
         """
         It poll() both control and data. It return the Python's list of the
         events occurred on control or data
         """
-        return self.__poll.poll(timeout)
+        return self.__poll.select(timeout)

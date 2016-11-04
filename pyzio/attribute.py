@@ -3,8 +3,11 @@
 @copyright: Federico Vaga 2012
 @license: GPLv2
 """
-from PyZio.ZioUtil import is_readable, is_writable
-import os, logging
+import logging
+import os
+
+from pyzio.utils import is_readable, is_writable
+
 
 class ZioAttribute(object):
     """
@@ -32,12 +35,23 @@ class ZioAttribute(object):
         """
         return is_writable(self.fullpath)
 
+    def __get__(self, obj, objtype):
+        return self.get_value()
+
     def get_value(self):
         """
         It reads the sysfs file of the attribute and it returns the value
         """
         with open(self.fullpath, "r") as f:
-            return f.read().rstrip("\n\r")
+            v = f.read().rstrip("\n\r")
+            try:
+                v = int(v)
+            except:
+                pass
+            return v
+
+    def __set__(self, obj, val):
+        return self.set_value(val)
 
     def set_value(self, val):
         """
