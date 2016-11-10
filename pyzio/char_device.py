@@ -47,8 +47,9 @@ class ZioCharDevice(ZioInterface):
         return self.__fdd
 
     def open_ctrl_data(self, perm=None):
-        self.open_ctrl()
-        self.open_data(perm)
+        fdc = self.open_ctrl()
+        fdd = self.open_data(perm)
+        return fdc, fdd
 
     def open_data(self, perm=None):
         """
@@ -58,14 +59,14 @@ class ZioCharDevice(ZioInterface):
             return self.__fdd
         if not perm:
             if self.is_data_writable():
-                perm = os.O_R
+                perm = 'wb'
             elif self.is_data_readable():
-                perm = os.O_RDONLY
+                perm = 'rb'
             else:
                 raise IOError('Data not readable or writable')
         evt = selectors.EVENT_WRITE if self.is_data_writable() \
             else selectors.EVENT_WRITE
-        self.__fdd = os.open(self.datafile, perm)
+        self.__fdd = open(self.datafile, perm)
         self.__poll.register(self.__fdd, evt)
         return self.__fdd
     
@@ -74,16 +75,17 @@ class ZioCharDevice(ZioInterface):
         Open ctrl char device
         """
         if self.__fdc:
-            return
+            return self.__fdc
         if not perm:
             if self.is_data_writable():
-                perm = os.O_R
+                perm = 'wb'
             elif self.is_data_readable():
-                perm = os.O_RDONLY
+                perm = 'rb'
             else:
                 raise IOError('Ctrl not readable or writable')
-        self.__fdc = os.open(self.ctrlfile, perm)
+        self.__fdc = open(self.ctrlfile, perm)
         self.__poll.register(self.__fdc, selectors.EVENT_READ)
+        return self.__fdc
 
     def close_ctrl_data(self):
         self.close_ctrl()
@@ -118,9 +120,10 @@ class ZioCharDevice(ZioInterface):
         if self.__fdc == None or not self.is_ctrl_readable():
             raise IOError
         # Read the control
-        bin_ctrl = os.read(self.__fdc, ZioCtrl.BASE_SIZE)
-        self.lastctrl = ZioCtrl(bin_ctrl)
-        return self.lastctrl
+        bin_ctrl = self.__fdc.read(ZioCtrl.BASE_SIZE)
+        ctrl = ZioCtrl(bin_ctrl)
+        self.lastctrl = ctrl
+        return ctrl
 
     def read_data(self, ctrl=None, unpack=True):
         """
@@ -136,7 +139,7 @@ class ZioCharDevice(ZioInterface):
         else:
             _ctrl = ctrl
 
-        data_tmp = os.read(self.__fdd, _ctrl.ssize * _ctrl.nsamples)
+        data_tmp = self.__fdd.read(_ctrl.ssize * _ctrl.nsamples)
         if unpack:
             return self._unpack_data(data_tmp, _ctrl.nsamples, _ctrl.ssize)
         else:

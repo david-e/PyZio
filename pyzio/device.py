@@ -10,6 +10,7 @@ from os.path import join, isdir
 from pyzio.attribute import ZioAttribute
 from pyzio.channelset import ZioCset
 from pyzio.object import ZioObject
+from pyzio.utils import ZioDict
 
 
 class ZioDev(ZioObject):
@@ -26,7 +27,7 @@ class ZioDev(ZioObject):
         set.
         """
         ZioObject.__init__(self, path, name)
-        self.cset = {}
+        self.cset = ZioDict()
         self.update()
     
     def __getitem__(self, key):
@@ -42,7 +43,7 @@ class ZioDev(ZioObject):
             if not self.is_valid_sysfs_element(tmp): # Skip if invalid element
                 continue
             if isdir(join(self.fullpath, tmp)): # Subdirs are csets
-                newcset = ZioCset(self.fullpath, tmp)
+                newcset = ZioCset(self.fullpath, tmp, self)
                 self.cset[newcset.oid] = newcset
             else: # otherwise is an attribute
                 self.set_attribute(tmp)

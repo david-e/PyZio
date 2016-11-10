@@ -6,6 +6,8 @@
 import os
 import struct
 
+from math import floor
+
 from pyzio.errors import ZioInvalidControl
 
 
@@ -104,10 +106,18 @@ class ZioTimeStamp(object):
         self.ticks = t
         self.bins = b
 
+    def to_timestamp(self):
+        return float('%s.%s' % (self.seconds, self.ticks))
+
+    @classmethod
+    def from_timestamp(cls, tstamp):
+        secs = floor(tstamp)
+        ticks = int((tstamp - secs) * 10**9)
+        return ZioTimeStamp(secs, ticks, 0)
+
     def __eq__(self, other):
         if not isinstance(other, ZioTimeStamp):
             return False
-
         return self.__dict__ == other.__dict__
 
     def __ne__(self, other):
@@ -283,14 +293,14 @@ class ZioCtrl(object):
         pack_list.append(self.addr.dev_id)
         pack_list.append(self.addr.cset_i)
         pack_list.append(self.addr.chan_i)
-        pack_list.append(self.addr.devname)
+        pack_list.append(bytes(self.addr.devname, 'UTF-8'))
         pack_list.append(self.tstamp.seconds)
         pack_list.append(self.tstamp.ticks)
         pack_list.append(self.tstamp.bins)
         pack_list.append(self.mem_offset)
         pack_list.append(self.reserved)
         pack_list.append(self.flags)
-        pack_list.append(self.triggername)
+        pack_list.append(bytes(self.triggername, 'UTF-8'))
         pack_list.append(self.attr_channel.std_mask)
         pack_list.append(0)  # filler
         pack_list.append(self.attr_channel.ext_mask)

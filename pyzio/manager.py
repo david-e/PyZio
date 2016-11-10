@@ -7,6 +7,7 @@ import os
 
 from pyzio.config import devices_path, zio_bus_path
 from pyzio.device import ZioDev
+from pyzio.utils import ZioDict
 
 
 def yield_devices():
@@ -47,7 +48,7 @@ class ZioManager(object):
         for zdev in yield_devices():
             name, devid = zdev.devname.split('-')
             if not zdev.name in devs:
-                devs[zdev.name] = {}     
+                devs[zdev.name] = ZioDict()     
             devs[zdev.name][int(devid)] = zdev
         self.Devices = devs
 

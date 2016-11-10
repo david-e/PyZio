@@ -24,4 +24,4 @@ class ZioTrig(ZioObject):
         for tmp in os.listdir(self.fullpath):
             if not self.is_valid_sysfs_element(tmp):
                 continue
-            self._attrs[tmp] = ZioAttribute(self.fullpath, tmp)
+            self._attrs[tmp] = self.set_attribute(tmp)

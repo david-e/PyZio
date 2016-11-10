@@ -21,7 +21,7 @@ class ZioChan(ZioObject):
     This class describes the zio_channel object from the ZIO framework.
     """
 
-    def __init__(self, path, name):
+    def __init__(self, path, name, cset):
         """
         It calls the __init__ function from ZioObject for a generic
         initialization; then it looks for attributes and buffer in its
@@ -29,6 +29,7 @@ class ZioChan(ZioObject):
         buffer or an interface.
         """
         ZioObject.__init__(self, path, name)
+        self.cset = cset
         self.update()
 
     def update(self):
@@ -75,20 +76,15 @@ class ZioChan(ZioObject):
             raise NotImplementedError
         self.interface.close_ctrl_data()
 
-    def read_block(self):
-        if not self.enable:
-            raise IOError
-        if self.interface_type != "cdev":
-            raise NotImplementedError
-        ctrl, data = self.interface.read_block()
-        return ctrl, data
-
-    def write_block(self, ctrl, data):
-        if not self.enable:
-            raise IOError
-        if self.interface_type != "cdev":
-            raise NotImplementedError
-        self.interface.write_block(ctrl, data)
+    def __getattribute__(self, name):
+        try:
+            obj = super(ZioChan, self).__getattribute__(name)
+        except AttributeError:
+            iface = super(ZioChan, self).__getattribute__('interface')
+            if not iface or not hasattr(iface, name):
+                raise AttributeError
+            obj = getattr(iface, name)
+        return obj
 
     def is_interleaved(self):
         """

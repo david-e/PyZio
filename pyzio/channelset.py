@@ -13,6 +13,7 @@ from pyzio.channel import ZioChan
 from pyzio.errors import ZioMissingAttribute
 from pyzio.object import ZioObject
 from pyzio.trigger import ZioTrig
+from pyzio.utils import ZioDict
 
 
 class ZioCset(ZioObject):
@@ -20,7 +21,7 @@ class ZioCset(ZioObject):
     ZioCset class describe the zio_cset object from the ZIO framework.
     """
 
-    def __init__(self, path, name):
+    def __init__(self, path, name, device):
         """
         It calls the __init__ function from ZioObject for a generic
         initialization; then it looks for attributes, channels and trigger in
@@ -29,7 +30,8 @@ class ZioCset(ZioObject):
         is made of trigger and channels.
         """
         ZioObject.__init__(self, path, name) # Initialize zObject
-        self.chan = {} # dict of channel children
+        self.device = device
+        self.chan = ZioDict() # dict of channel children
         self.update()
 
     def __getitem__(self, key):
@@ -47,7 +49,7 @@ class ZioCset(ZioObject):
                 self.trigger = ZioTrig(self.fullpath, tmp)
                 continue
             if isdir(join(self.fullpath, tmp)): # Subdir is a channel
-                newchan = ZioChan(self.fullpath, tmp)
+                newchan = ZioChan(self.fullpath, tmp, self)
                 self.chan[newchan.oid] = newchan
                 if tmp == "chani":
                     self.interleave = newchan

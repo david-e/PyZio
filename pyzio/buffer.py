@@ -21,18 +21,10 @@ class ZioBuf(ZioObject):
         valid files within its directory are buffers's attributes
         """
         ZioObject.__init__(self, path, name)
-        self.__flush_attr = None
         # Inspect all files and directory
         for tmp in os.listdir(self.fullpath):
             # Skip if the element it is not valid
             if not self.is_valid_sysfs_element(tmp):
                 continue
             # All the valid element are attributes
-            self._attrs[tmp] = ZioAttribute(self.fullpath, tmp)
-
-    def flush(self):
-        """
-        It does 'flush' on the buffer
-        """
-        if "flush" in self._attrs:
-            self._attrs["flush"].set_value(1)
+            self._attrs[tmp] = self.set_attribute(tmp)

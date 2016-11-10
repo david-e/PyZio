@@ -10,6 +10,16 @@ import stat
 from pyzio.config import zio_bus_path, devices_path
 
 
+class ZioDict(dict):
+    """ gives back the device even if the key is a str instead of int """
+    def __getitem__(self, key):
+        try:
+            key = int(key)
+        except:
+            pass
+        return super(ZioDict, self).__getitem__(key)
+
+
 def is_loaded():
     """It returns true if ZIO is loaded correctly, otherwise it returns false.
     It considers ZIO correctly loaded if the path to zio in sysfs exists, and
