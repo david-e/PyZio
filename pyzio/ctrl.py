@@ -90,10 +90,8 @@ class ZioAddress(object):
         return not self.__eq__(other)
 
     def __str__(self):
-        out = "dev {0}-{1}, cset {2}, chan {3}".format(self.devname, \
-                                                       self.dev_id, \
-                                                       self.cset_i, \
-                                                       self.chan_i)
+        out = "dev {0}-{1}, cset {2}, chan {3}".format(
+            self.devname, self.dev_id, self.cset_i, self.chan_i)
         return out
 
 
@@ -107,7 +105,7 @@ class ZioTimeStamp(object):
         self.bins = b
 
     def to_timestamp(self):
-        return float('%s.%s' % (self.seconds, self.ticks))
+        return float('%d.%09d' % (self.seconds, self.ticks))
 
     @classmethod
     def from_timestamp(cls, tstamp):
@@ -124,7 +122,7 @@ class ZioTimeStamp(object):
         return not self.__eq__(other)
 
     def __str__(self):
-        return "{0}.{1} ({2})".format(self.seconds, self.ticks, self.bins)
+        return "{0}.{:09d} ({2})".format(self.seconds, self.ticks, self.bins)
 
 
 class ZioCtrl(object):

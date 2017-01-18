@@ -24,7 +24,6 @@ class ZioCharDevice(ZioInterface):
         which use this interface. This object should be a channel
         """
         ZioInterface.__init__(self, zobj)
-        self.lastctrl = None
         self.__fdc = None
         self.__fdd = None
         # Set data and ctrl char devices
@@ -111,7 +110,7 @@ class ZioCharDevice(ZioInterface):
         os.close(self.__fdc)
         self.__fdc = None
 
-    def read_ctrl(self):
+    def _read_ctrl(self):
         """
         If the control char device is open and it is readable, then it reads
         the control structure. Every time it internally store the control; it
@@ -121,29 +120,21 @@ class ZioCharDevice(ZioInterface):
             raise IOError
         # Read the control
         bin_ctrl = self.__fdc.read(ZioCtrl.BASE_SIZE)
-        ctrl = ZioCtrl(bin_ctrl)
-        self.lastctrl = ctrl
-        return ctrl
+        return ZioCtrl(bin_ctrl)
 
     def read_data(self, ctrl=None, unpack=True):
         """
         If the data char device is open and it is readable, then it reads
         the data
         """
-        if self.__fdd == None or not self.is_data_readable():
-            raise IOError
-        if ctrl == None:
-            if self.lastctrl == None:
-                _ctrl = self.read_ctrl()
-            _ctrl = self.lastctrl
-        else:
-            _ctrl = ctrl
-
-        data_tmp = self.__fdd.read(_ctrl.ssize * _ctrl.nsamples)
+        #if self.__fdd == None or not self.is_data_readable():
+        #    raise IOError
+        ctrl = ctrl or self.lastctrl
+        bindata = self.__fdd.read(ctrl.ssize * ctrl.nsamples)
         if unpack:
-            return self._unpack_data(data_tmp, _ctrl.nsamples, _ctrl.ssize)
+            return self._unpack_data(bindata, ctrl.nsamples, ctrl.ssize)
         else:
-            return data_tmp
+            return bindata
 
     def read_block(self, rctrl=True, rdata=True, unpack=True):
         """

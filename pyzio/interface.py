@@ -20,9 +20,14 @@ class ZioInterface(object):
         self.interface_prefix = self.zobj._attrs["devname"].get_value()
         self.ctrlfile = "" # Full path to the control file
         self.datafile = "" # Full path to the data file
-        self.lastctrl = None
-
+        self._lastctrl = None
         logging.debug("new %s", self.__class__.__name__)
+
+    @property
+    def lastctrl(self):
+        if self._lastctrl:
+            return self._lastctrl
+        return self.read_ctrl()
 
     def is_ctrl_readable(self):
         """
@@ -106,7 +111,10 @@ class ZioInterface(object):
         source.
         """
         raise NotImplementedError
-
+    
+    def _read_ctrl(self):
+        """ should return a ZioCtrl object"""
+        raise NotImplementedError
 
     # Mandatory Read/Write Methods
     def read_ctrl(self):
@@ -114,7 +122,9 @@ class ZioInterface(object):
         It is a mandatory method for the derived class. It reads, and returns,
         a control structure from a channel.
         """
-        raise NotImplementedError
+        ctrl = self._read_ctrl()
+        self._lastctrl = ctrl
+        return ctrl
 
     def read_data(self, ctrl = None, unpack = True):
         """
