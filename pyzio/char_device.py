@@ -4,6 +4,7 @@
 @license: GPLv2
 """
 
+import mmap
 import os
 import selectors
 
@@ -25,8 +26,8 @@ class ZioCharDevice(ZioInterface):
         """
         ZioInterface.__init__(self, zobj)
         self.lastctrl = None
-        self.__fdc = None
-        self.__fdd = None
+        self._fdc = None
+        self._fdd = None
         # Set data and ctrl char devices
         self.ctrlfile = os.path.join(self.zio_interface_path, \
                                      self.interface_prefix + "-ctrl")
@@ -55,8 +56,8 @@ class ZioCharDevice(ZioInterface):
         """
         Open data char device
         """
-        if self.__fdd:
-            return self.__fdd
+        if self._fdd:
+            return self._fdd
         if not perm:
             if self.is_data_writable():
                 perm = 'wb'
@@ -67,15 +68,20 @@ class ZioCharDevice(ZioInterface):
         evt = selectors.EVENT_WRITE if self.is_data_writable() \
             else selectors.EVENT_WRITE
         self.__fdd = open(self.datafile, perm)
+        try:  # mmap is more efficient then file, but requires zio-buf-vmalloc
+            self.__fdm = mmap.mmap(self.__fdd.fileno(), 0)
+        except:
+            self.__fdm = None
+        self._fdd = self.__fdm or self.__fdd
         self.__poll.register(self.__fdd, evt)
-        return self.__fdd
-    
+        return self._fdd
+
     def open_ctrl(self, perm=None):
         """
         Open ctrl char device
         """
-        if self.__fdc:
-            return self.__fdc
+        if self._fdc:
+            return self._fdc
         if not perm:
             if self.is_data_writable():
                 perm = 'wb'
@@ -84,8 +90,13 @@ class ZioCharDevice(ZioInterface):
             else:
                 raise IOError('Ctrl not readable or writable')
         self.__fdc = open(self.ctrlfile, perm)
+        try:  # mmap is more efficient then file, but requires zio-buf-vmalloc
+            self.__fcm = mmap.mmap(self.__fdc.fileno(), 0)
+        except:
+            self.__fcm = None
+        self._fdc = self.__fcm or self.__fdc
         self.__poll.register(self.__fdc, selectors.EVENT_READ)
-        return self.__fdc
+        return self._fdc
 
     def close_ctrl_data(self):
         self.close_ctrl()
@@ -95,21 +106,25 @@ class ZioCharDevice(ZioInterface):
         """
         Close data char device
         """
-        if self.__fdd == None:
+        if self.__fdm:
+            self.__fdm.close()
+        if self._fdd is None:
             return
         self.__poll.unregister(self.__fdd)
         os.close(self.__fdd)
-        self.__fdd = None
+        self.__fdd = self._fd = None
 
     def close_ctrl(self):
         """
         Close ctrl char device
         """
-        if self.__fdc == None:
+        if self.__fcm:
+            self.__fcm.close()
+        if self._fdc is None:
             return
         self.__poll.unregister(self.__fdc)
         os.close(self.__fdc)
-        self.__fdc = None
+        self.__fdc = self._fdc = None
 
     def read_ctrl(self):
         """
@@ -117,10 +132,10 @@ class ZioCharDevice(ZioInterface):
         the control structure. Every time it internally store the control; it
         will be used as default when no control is provided
         """
-        if self.__fdc == None or not self.is_ctrl_readable():
-            raise IOError
+        #if self.__fdc == None or not self.is_ctrl_readable():
+        #    raise IOError
         # Read the control
-        bin_ctrl = self.__fdc.read(ZioCtrl.BASE_SIZE)
+        bin_ctrl = self._fdc.read(ZioCtrl.BASE_SIZE)
         ctrl = ZioCtrl(bin_ctrl)
         self.lastctrl = ctrl
         return ctrl
@@ -130,35 +145,23 @@ class ZioCharDevice(ZioInterface):
         If the data char device is open and it is readable, then it reads
         the data
         """
-        if self.__fdd == None or not self.is_data_readable():
-            raise IOError
-        if ctrl == None:
-            if self.lastctrl == None:
-                _ctrl = self.read_ctrl()
-            _ctrl = self.lastctrl
-        else:
-            _ctrl = ctrl
-
-        data_tmp = self.__fdd.read(_ctrl.ssize * _ctrl.nsamples)
-        if unpack:
-            return self._unpack_data(data_tmp, _ctrl.nsamples, _ctrl.ssize)
-        else:
+        #if self.__fdd == None or not self.is_data_readable():
+        #    raise IOError
+        ctrl = ctrl or self.lastctrl or self.read_ctrl()
+        data_tmp = self._fdd.read(ctrl.ssize * ctrl.nsamples)
+        if not unpack:
             return data_tmp
+        return self._unpack_data(data_tmp, ctrl.nsamples, ctrl.ssize)
 
-    def read_block(self, rctrl=True, rdata=True, unpack=True):
+    def read_block(self, unpack=True):
         """
         It read the control and the samples of a block from char devices.
         It stores the last control in self.lastCtrl. The parameter rctrl and
         rdata are boolean value: if True they acquire the associated
         information
         """
-        ctrl = None
-        samples = None
-
-        if rctrl:
-            ctrl = self.read_ctrl()
-        if rdata:  # Read the data
-            data = self.read_data(ctrl, unpack)
+        ctrl = self.read_ctrl()
+        data = self.read_data(ctrl, unpack)
         return ctrl, data
 
     def write_ctrl(self, ctrl):

@@ -124,7 +124,7 @@ class ZioTimeStamp(object):
         return not self.__eq__(other)
 
     def __str__(self):
-        return "{0}.{1} ({2})".format(self.seconds, self.ticks, self.bins)
+        return "{0}.{:09d} ({2})".format(self.seconds, self.ticks, self.bins)
 
 
 class ZioCtrl(object):

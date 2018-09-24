@@ -37,18 +37,18 @@ class ZioManager(object):
 
     def __init__(self):
         self.update()
-    
+
     def update(self):
         self.Buffers = list(yield_buffers())
         self._update_devices()
         self.Triggers = list(yield_triggers())
-    
+
     def _update_devices(self):
         devs = {}
         for zdev in yield_devices():
             name, devid = zdev.devname.split('-')
             if not zdev.name in devs:
-                devs[zdev.name] = ZioDict()     
+                devs[zdev.name] = ZioDict()
             devs[zdev.name][int(devid)] = zdev
         self.Devices = devs
 
